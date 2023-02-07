@@ -5,31 +5,39 @@ editor: visual
 ---
 
 ```{r}
-
 # Note: Control arm is indexed 1 and treatment arms are indexed 2, 3 and 4.
 
 ##### ----------- Design 1 -----------#####
 
-design1_func <- function(k=1000, N=228, seed=100, alpha=0.35, beta=0.65,
-                         trt_effect=c(0.35, 0.35, 0.35, 0.35)){
+rbinom_sampler <- function(n, p){
+  return(rbinom(n, 1, p=p))
+}
+
+rbeta_sampler <- function(n, y_arm){
+  return(rbeta(k, alpha + sum(y_arm), beta + n - sum(y_arm)))
+}
+
+design1_func <- function(k=1000, N=228, seed=100, alpha=0.35,
+                         beta=0.65,trt_effect=c(0.35, 0.35, 0.35,
+                                                0.35)){
+  
   set.seed(seed)
-  y_arm1 <- rbinom(N/4, 1, p=trt_effect[1])
-  y_arm2 <- rbinom(N/4, 1, p=trt_effect[2])
-  y_arm3 <- rbinom(N/4, 1, p=trt_effect[3])
-  y_arm4 <- rbinom(N/4, 1, p=trt_effect[4])
+  
+  y_arm_list <- mapply(rbinom_sampler, rep(N/4,4), trt_effect, SIMPLIFY = FALSE)
   
   # Drawing from posterior distribution.
-  p_arm1 <- rbeta(k, alpha + sum(y_arm1), beta + N/4 - sum(y_arm1))
-  p_arm2 <- rbeta(k, alpha + sum(y_arm2), beta + N/4 - sum(y_arm2))
-  p_arm3 <- rbeta(k, alpha + sum(y_arm3), beta + N/4 - sum(y_arm3))
-  p_arm4 <- rbeta(k, alpha + sum(y_arm4), beta + N/4 - sum(y_arm4))
-  p_arm_list <- list(p_arm1, p_arm2, p_arm3, p_arm4)
-  p_vec <- c(sum(as.numeric(p_arm2>p_arm1))/k, sum(as.numeric(p_arm3>p_arm1))/k, 
-           sum(as.numeric(p_arm4>p_arm1))/k)
+  p_arm_list <- mapply(rbeta_sampler, rep(N/4,4), y_arm_list, SIMPLIFY = FALSE)
+  
+  p_vec <- c(sum(as.numeric(p_arm_list[[2]]>p_arm_list[[1]]))/k,
+             sum(as.numeric(p_arm_list[[3]]>p_arm_list[[1]]))/k,
+             sum(as.numeric(p_arm_list[[4]]>p_arm_list[[1]]))/k)
+  
   char <- paste("Arm",which.max(p_vec)+1,"is best") ## +1 because indexing of arms starts with 1.
   return(list(char,p_vec,rep(N/4,4),p_arm_list))
 }
+```
 
+```{r}
 ##### ----------- Design 2 -----------#####
 
 # Non-modular version of design 2.
@@ -95,7 +103,9 @@ while (patients_assigned < total_patients){
   patients_assigned <- patients_assigned + interim
   
 }
+```
 
+```{r}
 # Modular version of design 2.
 
 n_allocation_func <- function(n, arm_weights_vec){
@@ -178,7 +188,9 @@ best_arm <- function(p_arm_inputlist){
   char <- paste("Arm",which.max(p_vec)+1,"is best") ## +1 because indexing of arms starts with 1.
   return(list(char,p_vec))
 }
+```
 
+```{r}
 design2_func <- function(seed=100, total_patients=228, k=1000, patients_num=40,
                          trt_effect=c(0.35, 0.35, 0.35, 0.35),alpha=0.35,
                          beta=0.65){
@@ -207,7 +219,9 @@ design2_func <- function(seed=100, total_patients=228, k=1000, patients_num=40,
   return_list[[4]] <- posterior
   return(return_list)
   }
+```
 
+```{r}
 # Calculation of Type I error.
 
 replicates_num <- 10000
@@ -234,6 +248,9 @@ print( Sys.time() - start)
 typeI_error_design1 <- sum(as.numeric(success_logical_design1))/replicates_num
 typeI_error_design2 <- sum(as.numeric(success_logical_design2))/replicates_num
 
+```
+
+```{r}
 # Finding the delta for each design.
 
 max_prob_func_design1 <- function(x){
@@ -249,9 +266,13 @@ max_prob_func_design2 <- function(x){
 max_prob_vec_design1 <- lapply(1:replicates_num, max_prob_func_design1)
 max_prob_vec_design2 <- lapply(1:replicates_num, max_prob_func_design2)
 
-quantile(as.numeric(max_prob_vec_design1),probs=c(0.975))
-quantile(as.numeric(max_prob_vec_design2),probs=c(0.975))
+#quantile(as.numeric(max_prob_vec_design1),probs=c(0.975))
+#quantile(as.numeric(max_prob_vec_design2),probs=c(0.975))
 
+# We want to find the range of delta, so that the type I error is around 2.5%.
+```
+
+```{r}
 # Constructing Table 2.
 
 which_max_dataframe <- function(p_arm_input_list){
