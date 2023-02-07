@@ -6,6 +6,8 @@ HW1
 
 ##### ----------- Design 1 -----------#####
 
+# Modular and vectorized version of design 1.
+
 rbinom_sampler <- function(n, p){
   return(rbinom(n, 1, p=p))
 }
@@ -37,7 +39,7 @@ design1_func <- function(k=1000, N=228, seed=100, alpha=0.35,
 ``` r
 ##### ----------- Design 2 -----------#####
 
-# Non-modular version of design 2.
+# Non-modular and non-vectorized version of design 2.
 
 set.seed(100)
 total_patients <- 228
@@ -103,7 +105,7 @@ while (patients_assigned < total_patients){
 ```
 
 ``` r
-# Modular version of design 2.
+# Modular and vectorized version of design 2.
 
 n_allocation_func <- function(n, arm_weights_vec){
   n_allocation_vector <- numeric()
@@ -118,11 +120,10 @@ n_allocation_func <- function(n, arm_weights_vec){
 
 binom_outcome_sample_func <- function(n_allocation_input_vec,
                                       trt_effect=c(0.35,0.35,0.35,0.35)){
-  y_arm1_vec <- rbinom(n_allocation_input_vec[1], 1, p=trt_effect[1])
-  y_arm2_vec <- rbinom(n_allocation_input_vec[2], 1, p=trt_effect[2])
-  y_arm3_vec <- rbinom(n_allocation_input_vec[3], 1, p=trt_effect[3])
-  y_arm4_vec <- rbinom(n_allocation_input_vec[4], 1, p=trt_effect[4])
-  return(list(y_arm1_vec, y_arm2_vec, y_arm3_vec, y_arm4_vec))
+  
+  y_arm_list <- mapply(rbinom_sampler, n_allocation_input_vec, trt_effect, SIMPLIFY = FALSE)
+  
+  return(y_arm_list)
 }
 
 storing_n_allocation_func <- function(existing_vector,new_vector){
@@ -138,16 +139,9 @@ storing_outcome_sample_func <- function(existing_list,new_list){
   return(existing_list)
 }
 
-posterior_func <- function(k, alpha, beta, y_arm_input_list, n_allocation_vec){
-  p_arm1 <- rbeta(k, alpha + sum(y_arm_input_list[[1]]), beta +
-                    n_allocation_vec[1] - sum(y_arm_input_list[[1]]))
-  p_arm2 <- rbeta(k, alpha + sum(y_arm_input_list[[2]]), beta +
-                    n_allocation_vec[2] - sum(y_arm_input_list[[2]]))
-  p_arm3 <- rbeta(k, alpha + sum(y_arm_input_list[[3]]), beta +
-                    n_allocation_vec[3] - sum(y_arm_input_list[[3]]))
-  p_arm4 <- rbeta(k, alpha + sum(y_arm_input_list[[4]]), beta +
-                    n_allocation_vec[4] - sum(y_arm_input_list[[4]]))
-  return(list(p_arm1, p_arm2, p_arm3, p_arm4))
+posterior_func <- function(y_arm_input_list, n_allocation_vec){
+  p_arm_list <- mapply(rbeta_sampler, n_allocation_vec, y_arm_input_list, SIMPLIFY = FALSE)
+  return(p_arm_list)
 }
 
 rar_weights_update_func <- function(p_arm_input_list, n_allocation_inputvec){
@@ -206,8 +200,7 @@ design2_func <- function(seed=100, total_patients=228, k=1000, patients_num=40,
                                                         n_allocation)
     y_arm_list <- binom_outcome_sample_func(n_allocation, trt_effect)
     keep_y_arm_list <- storing_outcome_sample_func(keep_y_arm_list, y_arm_list)
-    posterior <- posterior_func(k, alpha, beta, keep_y_arm_list,
-                              keep_n_allocation_vector)
+    posterior <- posterior_func(keep_y_arm_list, keep_n_allocation_vector)
     arm_weights <- rar_weights_update_func(posterior, n_allocation)
     patients_assigned <- patients_assigned + interim
   }
@@ -240,15 +233,25 @@ success_func_design2 <- function(x){
 success_logical_design1 <- lapply(1:replicates_num, success_func_design1)
 success_logical_design2 <- lapply(1:replicates_num, success_func_design2)
 
-print( Sys.time() - start)
+print(Sys.time() - start)
 ```
 
-    Time difference of 5.774514 mins
+    Time difference of 5.264601 mins
 
 ``` r
 typeI_error_design1 <- sum(as.numeric(success_logical_design1))/replicates_num
 typeI_error_design2 <- sum(as.numeric(success_logical_design2))/replicates_num
+
+typeI_error_design1
 ```
+
+    [1] 0.0251
+
+``` r
+typeI_error_design2
+```
+
+    [1] 0.0244
 
 ``` r
 # Finding the delta for each design.
@@ -301,4 +304,9 @@ f <- sum(df_design2$max_index>=4)/dim(df_design2)[1]
 table2 <- data.frame(c(a,d), c(b,e), c(c,f))
 colnames(table2) <- c("Arm 2 or better", "Arm 3 or better", " Arm 4 is best")
 rownames(table2) <- c("F25", "RMatch")
+table2
 ```
+
+           Arm 2 or better Arm 3 or better  Arm 4 is best
+    F25              0.999           0.956          0.803
+    RMatch           1.000           0.766          0.763
