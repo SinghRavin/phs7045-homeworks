@@ -6,22 +6,29 @@ HW1
 
 ##### ----------- Design 1 -----------#####
 
-design1_func <- function(k=1000, N=228, seed=100, alpha=0.35, beta=0.65,
-                         trt_effect=c(0.35, 0.35, 0.35, 0.35)){
+rbinom_sampler <- function(n, p){
+  return(rbinom(n, 1, p=p))
+}
+
+rbeta_sampler <- function(n, y_arm){
+  return(rbeta(k, alpha + sum(y_arm), beta + n - sum(y_arm)))
+}
+
+design1_func <- function(k=1000, N=228, seed=100, alpha=0.35,
+                         beta=0.65,trt_effect=c(0.35, 0.35, 0.35,
+                                                0.35)){
+  
   set.seed(seed)
-  y_arm1 <- rbinom(N/4, 1, p=trt_effect[1])
-  y_arm2 <- rbinom(N/4, 1, p=trt_effect[2])
-  y_arm3 <- rbinom(N/4, 1, p=trt_effect[3])
-  y_arm4 <- rbinom(N/4, 1, p=trt_effect[4])
+  
+  y_arm_list <- mapply(rbinom_sampler, rep(N/4,4), trt_effect, SIMPLIFY = FALSE)
   
   # Drawing from posterior distribution.
-  p_arm1 <- rbeta(k, alpha + sum(y_arm1), beta + N/4 - sum(y_arm1))
-  p_arm2 <- rbeta(k, alpha + sum(y_arm2), beta + N/4 - sum(y_arm2))
-  p_arm3 <- rbeta(k, alpha + sum(y_arm3), beta + N/4 - sum(y_arm3))
-  p_arm4 <- rbeta(k, alpha + sum(y_arm4), beta + N/4 - sum(y_arm4))
-  p_arm_list <- list(p_arm1, p_arm2, p_arm3, p_arm4)
-  p_vec <- c(sum(as.numeric(p_arm2>p_arm1))/k, sum(as.numeric(p_arm3>p_arm1))/k, 
-           sum(as.numeric(p_arm4>p_arm1))/k)
+  p_arm_list <- mapply(rbeta_sampler, rep(N/4,4), y_arm_list, SIMPLIFY = FALSE)
+  
+  p_vec <- c(sum(as.numeric(p_arm_list[[2]]>p_arm_list[[1]]))/k,
+             sum(as.numeric(p_arm_list[[3]]>p_arm_list[[1]]))/k,
+             sum(as.numeric(p_arm_list[[4]]>p_arm_list[[1]]))/k)
+  
   char <- paste("Arm",which.max(p_vec)+1,"is best") ## +1 because indexing of arms starts with 1.
   return(list(char,p_vec,rep(N/4,4),p_arm_list))
 }
@@ -236,7 +243,7 @@ success_logical_design2 <- lapply(1:replicates_num, success_func_design2)
 print( Sys.time() - start)
 ```
 
-    Time difference of 4.513268 mins
+    Time difference of 5.774514 mins
 
 ``` r
 typeI_error_design1 <- sum(as.numeric(success_logical_design1))/replicates_num
