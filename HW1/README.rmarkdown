@@ -1,0 +1,285 @@
+---
+title: "HW1"
+format: gfm
+editor: visual
+---
+
+```{r}
+
+# Note: Control arm is indexed 1 and treatment arms are indexed 2, 3 and 4.
+
+##### ----------- Design 1 -----------#####
+
+design1_func <- function(k=1000, N=228, seed=100, alpha=0.35, beta=0.65,
+                         trt_effect=c(0.35, 0.35, 0.35, 0.35)){
+  set.seed(seed)
+  y_arm1 <- rbinom(N/4, 1, p=trt_effect[1])
+  y_arm2 <- rbinom(N/4, 1, p=trt_effect[2])
+  y_arm3 <- rbinom(N/4, 1, p=trt_effect[3])
+  y_arm4 <- rbinom(N/4, 1, p=trt_effect[4])
+  
+  # Drawing from posterior distribution.
+  p_arm1 <- rbeta(k, alpha + sum(y_arm1), beta + N/4 - sum(y_arm1))
+  p_arm2 <- rbeta(k, alpha + sum(y_arm2), beta + N/4 - sum(y_arm2))
+  p_arm3 <- rbeta(k, alpha + sum(y_arm3), beta + N/4 - sum(y_arm3))
+  p_arm4 <- rbeta(k, alpha + sum(y_arm4), beta + N/4 - sum(y_arm4))
+  p_arm_list <- list(p_arm1, p_arm2, p_arm3, p_arm4)
+  p_vec <- c(sum(as.numeric(p_arm2>p_arm1))/k, sum(as.numeric(p_arm3>p_arm1))/k, 
+           sum(as.numeric(p_arm4>p_arm1))/k)
+  char <- paste("Arm",which.max(p_vec)+1,"is best") ## +1 because indexing of arms starts with 1.
+  return(list(char,p_vec,rep(N/4,4),p_arm_list))
+}
+
+##### ----------- Design 2 -----------#####
+
+# Non-modular version of design 2.
+
+set.seed(100)
+total_patients <- 228
+k=1000
+n_allocation <- c(0,0,0,0)
+arm_weights <- c(0.25, 0.25, 0.25, 0.25)
+patients_num <- 40
+keep_y_arm1 <- numeric()
+keep_y_arm2 <- numeric()
+keep_y_arm3 <- numeric()
+keep_y_arm4 <- numeric()
+trt_effect=c(0.35, 0.35, 0.35, 0.35)
+alpha <- 0.35
+beta <- 0.65
+patients_assigned <- 0
+
+while (patients_assigned < total_patients){
+  
+  interim <- min(patients_num, total_patients - patients_assigned)
+  
+  n_allocation[1] <- interim - (round(arm_weights[2]*interim,0)+
+                                  round(arm_weights[3]*interim,0)+
+                                  round(arm_weights[4]*interim,0))
+  n_allocation[2] <- round(arm_weights[2]*interim,0)
+  n_allocation[3] <- round(arm_weights[3]*interim,0)
+  n_allocation[4] <- round(arm_weights[4]*interim,0)
+  
+  y_arm1 <- rbinom(n_allocation[1], 1, p=trt_effect[1])
+  y_arm2 <- rbinom(n_allocation[2], 1, p=trt_effect[2])
+  y_arm3 <- rbinom(n_allocation[3], 1, p=trt_effect[3])
+  y_arm4 <- rbinom(n_allocation[4], 1, p=trt_effect[4])
+  
+  keep_y_arm1 <- c(keep_y_arm1,y_arm1)
+  keep_y_arm2 <- c(keep_y_arm2,y_arm2)
+  keep_y_arm3 <- c(keep_y_arm3,y_arm3)
+  keep_y_arm4 <- c(keep_y_arm4,y_arm4)
+  
+  p_arm1 <- rbeta(k, alpha + sum(y_arm1), beta + n_allocation[1] - sum(y_arm1))
+  p_arm2 <- rbeta(k, alpha + sum(y_arm2), beta + n_allocation[2] - sum(y_arm2))
+  p_arm3 <- rbeta(k, alpha + sum(y_arm3), beta + n_allocation[3] - sum(y_arm3))
+  p_arm4 <- rbeta(k, alpha + sum(y_arm4), beta + n_allocation[4] - sum(y_arm4))
+  
+  d <- as.data.frame(cbind(p_arm1, p_arm2, p_arm3, p_arm4))
+  d$max_index <- apply(d, 1, FUN = function(x) which.max(x))
+  
+  a2 <- sum(as.numeric(d$max_index==2))/k
+  a3 <- sum(as.numeric(d$max_index==3))/k
+  a4 <- sum(as.numeric(d$max_index==4))/k
+  
+  a1 <- min(a2*((n_allocation[2]+1)/(n_allocation[1]+1)) + 
+                          a3*((n_allocation[3]+1)/(n_allocation[1]+1)) + 
+                          a4*((n_allocation[4]+1)/(n_allocation[1]+1)),
+            max(a2, a3, a4))
+  
+  arm_weights[1] <- a1/(a1+a2+a3+a4)
+  arm_weights[2] <- a2/(a1+a2+a3+a4)
+  arm_weights[3] <- a3/(a1+a2+a3+a4)
+  arm_weights[4] <- a4/(a1+a2+a3+a4)
+  
+  patients_assigned <- patients_assigned + interim
+  
+}
+
+# Modular version of design 2.
+
+n_allocation_func <- function(n, arm_weights_vec){
+  n_allocation_vector <- numeric()
+  n_allocation_vector[1] <- n - (round(arm_weights_vec[2]*n,0)+
+                                  round(arm_weights_vec[3]*n,0)+
+                                  round(arm_weights_vec[4]*n,0))
+  n_allocation_vector[2] <- round(arm_weights_vec[2]*n,0)
+  n_allocation_vector[3] <- round(arm_weights_vec[3]*n,0)
+  n_allocation_vector[4] <- round(arm_weights_vec[4]*n,0)
+  return(n_allocation_vector)
+}
+
+binom_outcome_sample_func <- function(n_allocation_input_vec,
+                                      trt_effect=c(0.35,0.35,0.35,0.35)){
+  y_arm1_vec <- rbinom(n_allocation_input_vec[1], 1, p=trt_effect[1])
+  y_arm2_vec <- rbinom(n_allocation_input_vec[2], 1, p=trt_effect[2])
+  y_arm3_vec <- rbinom(n_allocation_input_vec[3], 1, p=trt_effect[3])
+  y_arm4_vec <- rbinom(n_allocation_input_vec[4], 1, p=trt_effect[4])
+  return(list(y_arm1_vec, y_arm2_vec, y_arm3_vec, y_arm4_vec))
+}
+
+storing_n_allocation_func <- function(existing_vector,new_vector){
+  existing_vector <- existing_vector + new_vector
+  return(existing_vector)
+}
+
+storing_outcome_sample_func <- function(existing_list,new_list){
+  existing_list[[1]] <- c(existing_list[[1]],new_list[[1]])
+  existing_list[[2]] <- c(existing_list[[2]],new_list[[2]])
+  existing_list[[3]] <- c(existing_list[[3]],new_list[[3]])
+  existing_list[[4]] <- c(existing_list[[4]],new_list[[4]])
+  return(existing_list)
+}
+
+posterior_func <- function(k, alpha, beta, y_arm_input_list, n_allocation_vec){
+  p_arm1 <- rbeta(k, alpha + sum(y_arm_input_list[[1]]), beta +
+                    n_allocation_vec[1] - sum(y_arm_input_list[[1]]))
+  p_arm2 <- rbeta(k, alpha + sum(y_arm_input_list[[2]]), beta +
+                    n_allocation_vec[2] - sum(y_arm_input_list[[2]]))
+  p_arm3 <- rbeta(k, alpha + sum(y_arm_input_list[[3]]), beta +
+                    n_allocation_vec[3] - sum(y_arm_input_list[[3]]))
+  p_arm4 <- rbeta(k, alpha + sum(y_arm_input_list[[4]]), beta +
+                    n_allocation_vec[4] - sum(y_arm_input_list[[4]]))
+  return(list(p_arm1, p_arm2, p_arm3, p_arm4))
+}
+
+rar_weights_update_func <- function(p_arm_input_list, n_allocation_inputvec){
+  
+  arm_weights_vector <- numeric()
+  
+  d <- as.data.frame(cbind(p_arm_input_list[[1]], p_arm_input_list[[2]],
+                           p_arm_input_list[[3]], p_arm_input_list[[4]]))
+  d$max_index <- apply(d, 1, FUN = function(x) which.max(x))
+  
+  len <- length(p_arm_input_list[[1]])
+  
+  a2 <- sum(as.numeric(d$max_index==2))/len
+  a3 <- sum(as.numeric(d$max_index==3))/len
+  a4 <- sum(as.numeric(d$max_index==4))/len
+  
+  a1 <- min(a2*((n_allocation_inputvec[2]+1)/(n_allocation_inputvec[1]+1)) + 
+              a3*((n_allocation_inputvec[3]+1)/(n_allocation_inputvec[1]+1)) + 
+              a4*((n_allocation_inputvec[4]+1)/(n_allocation_inputvec[1]+1)),
+            max(a2, a3, a4))
+  
+  arm_weights_vector[1] <- a1/(a1+a2+a3+a4)
+  arm_weights_vector[2] <- a2/(a1+a2+a3+a4)
+  arm_weights_vector[3] <- a3/(a1+a2+a3+a4)
+  arm_weights_vector[4] <- a4/(a1+a2+a3+a4)
+  
+  return(arm_weights_vector)
+}
+
+best_arm <- function(p_arm_inputlist){
+  len <- length(p_arm_inputlist[[1]])
+  p_vec <- c(sum(as.numeric(p_arm_inputlist[[2]]>p_arm_inputlist[[1]]))/len,
+             sum(as.numeric(p_arm_inputlist[[3]]>p_arm_inputlist[[1]]))/len, 
+             sum(as.numeric(p_arm_inputlist[[4]]>p_arm_inputlist[[1]]))/len)
+  char <- paste("Arm",which.max(p_vec)+1,"is best") ## +1 because indexing of arms starts with 1.
+  return(list(char,p_vec))
+}
+
+design2_func <- function(seed=100, total_patients=228, k=1000, patients_num=40,
+                         trt_effect=c(0.35, 0.35, 0.35, 0.35),alpha=0.35,
+                         beta=0.65){
+  set.seed(seed)
+  keep_y_arm_list <- list(numeric(0), numeric(0), numeric(0), numeric(0))
+  keep_n_allocation_vector <- c(0,0,0,0)
+  n_allocation <- c(0,0,0,0)
+  arm_weights <- c(0.25, 0.25, 0.25, 0.25)
+  patients_assigned <- 0
+  
+  while (patients_assigned < total_patients){
+    interim <- min(patients_num, total_patients - patients_assigned)
+    
+    n_allocation <- n_allocation_func(interim, arm_weights)
+    keep_n_allocation_vector <- storing_n_allocation_func(keep_n_allocation_vector,
+                                                        n_allocation)
+    y_arm_list <- binom_outcome_sample_func(n_allocation, trt_effect)
+    keep_y_arm_list <- storing_outcome_sample_func(keep_y_arm_list, y_arm_list)
+    posterior <- posterior_func(k, alpha, beta, keep_y_arm_list,
+                              keep_n_allocation_vector)
+    arm_weights <- rar_weights_update_func(posterior, n_allocation)
+    patients_assigned <- patients_assigned + interim
+  }
+  return_list <- best_arm(posterior)
+  return_list[[3]] <- keep_n_allocation_vector
+  return_list[[4]] <- posterior
+  return(return_list)
+  }
+
+# Calculation of Type I error.
+
+replicates_num <- 10000
+delta_design1 = 0.9912
+delta_design2 = 0.9892
+
+start <- Sys.time()
+
+success_func_design1 <- function(x){
+  design1_output <- design1_func(seed = x)
+  ifelse(max(design1_output[[2]])>delta_design1, TRUE, FALSE)
+}
+
+success_func_design2 <- function(x){
+  design2_output <- design2_func(seed = x)
+  ifelse(max(design2_output[[2]])>delta_design2, TRUE, FALSE)
+}
+
+success_logical_design1 <- lapply(1:replicates_num, success_func_design1)
+success_logical_design2 <- lapply(1:replicates_num, success_func_design2)
+
+print( Sys.time() - start)
+
+typeI_error_design1 <- sum(as.numeric(success_logical_design1))/replicates_num
+typeI_error_design2 <- sum(as.numeric(success_logical_design2))/replicates_num
+
+# Finding the delta for each design.
+
+max_prob_func_design1 <- function(x){
+  design1_output <- design1_func(seed = x)
+  return(max(design1_output[[2]]))
+}
+
+max_prob_func_design2 <- function(x){
+  design2_output <- design2_func(seed = x)
+  return(max(design2_output[[2]]))
+}
+
+max_prob_vec_design1 <- lapply(1:replicates_num, max_prob_func_design1)
+max_prob_vec_design2 <- lapply(1:replicates_num, max_prob_func_design2)
+
+quantile(as.numeric(max_prob_vec_design1),probs=c(0.975))
+quantile(as.numeric(max_prob_vec_design2),probs=c(0.975))
+
+# Constructing Table 2.
+
+which_max_dataframe <- function(p_arm_input_list){
+  
+  d <- as.data.frame(cbind(p_arm_input_list[[1]], p_arm_input_list[[2]],
+                           p_arm_input_list[[3]], p_arm_input_list[[4]]))
+  d$max_index <- apply(d, 1, FUN = function(x) which.max(x))
+  
+  return(d)
+}
+
+design1_mixed_scenario <- design1_func(trt_effect = c(0.35, 0.45, 0.55, 0.65))
+design2_mixed_scenario <- design2_func(trt_effect = c(0.35, 0.45, 0.55, 0.65))
+
+df_design1 <- which_max_dataframe(design1_mixed_scenario[[4]])
+df_design2 <- which_max_dataframe(design2_mixed_scenario[[4]])
+
+a <- sum(df_design1$max_index>=2)/dim(df_design1)[1]
+b <- sum(df_design1$max_index>=3)/dim(df_design1)[1]
+c <- sum(df_design1$max_index>=4)/dim(df_design1)[1]
+
+d <- sum(df_design2$max_index>=2)/dim(df_design2)[1]
+e <- sum(df_design2$max_index>=3)/dim(df_design2)[1]
+f <- sum(df_design2$max_index>=4)/dim(df_design2)[1]
+
+table2 <- data.frame(c(a,d), c(b,e), c(c,f))
+colnames(table2) <- c("Arm 2 or better", "Arm 3 or better", " Arm 4 is best")
+rownames(table2) <- c("F25", "RMatch")
+
+```
+
