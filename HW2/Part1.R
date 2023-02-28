@@ -11,7 +11,7 @@ fun1 <- function(n = 100, k = 4, lambda = 4) {
 }
 
 fun1alt <- function(n = 100, k = 4, lambda = 4) {
-  return(as.data.frame(matrix(rpois(n*k,4),nrow=n,ncol=4)))
+  return(matrix(rpois(n*k,4),nrow=n,ncol=4))
 }
 
 # Benchmarking
@@ -33,7 +33,7 @@ fun1 <- function(mat) {
 }
 
 fun1alt <- function(mat) {
-  # YOUR CODE HERE
+  return(rowSums(mat))
 }
 
 # Cumulative sum by row
@@ -50,7 +50,7 @@ fun2 <- function(mat) {
 }
 
 fun2alt <- function(mat) {
-  # YOUR CODE HERE
+  t(apply(mat, 1, cumsum))
 }
 
 # Use the data with this code
@@ -81,13 +81,18 @@ fun2 <- function(x) {
 }
 
 fun2alt <- function(x) {
-  # YOUR CODE HERE
+  vec <- max.col(t(x))
+  return_vec <- NULL
+  for (i in 1:dim(x)[2]){
+    return_vec[i]<-x[vec[i],i]
+  }
+  return(return_vec)
 }
 
 # Benchmarking
 bench::mark(
-  fun2(),
-  fun2alt(), relative = TRUE
+  fun2(x),
+  fun2alt(x), relative = TRUE
 )
 
 
