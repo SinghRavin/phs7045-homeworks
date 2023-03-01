@@ -1,27 +1,41 @@
-#include <Rcpp.h>
+#include<Rcpp.h>
+
 using namespace Rcpp;
 
-// This is a simple example of exporting a C++ function to R. You can
-// source this function into an R session using the Rcpp::sourceCpp 
-// function (or via the Source button on the editor toolbar). Learn
-// more about Rcpp at:
-//
-//   http://www.rcpp.org/
-//   http://adv-r.had.co.nz/Rcpp.html
-//   http://gallery.rcpp.org/
-//
-
 // [[Rcpp::export]]
-NumericVector timesTwo(NumericVector x) {
-  return x * 2;
+List psmatch(
+    NumericVector pscores,
+    LogicalVector is_treated
+)
+{
+  int n = pscores.size();
+  IntegerVector indicies(n);
+  NumericVector values(n);
+  
+  for (int i = 0; i < n; ++i) {
+    int best_neigh = 0;
+    double best_dist = std::numeric_limits< double >::max();
+    for (int j = 0; j < n; ++j){
+      
+      if (j==i)
+        continue;
+      
+      if (is_treated[j]==is_treated[i]){
+        continue;
+      }
+      
+      double tmp_dist = abs(pscores[i]-pscores[j]);
+      if (tmp_dist < best_dist){
+        best_dist = tmp_dist;
+        best_neigh = j;
+      }
+    }
+    
+    indicies[i]=best_neigh;
+    values[i] = pscores[best_neigh];
+    
+  }
+  
+  return List::create(_["match_id"]=indicies+1, _["match_x"]=values);
+  
 }
-
-
-// You can include R code blocks in C++ files processed with sourceCpp
-// (useful for testing and development). The R code will be automatically 
-// run after the compilation.
-//
-
-/*** R
-timesTwo(42)
-*/
