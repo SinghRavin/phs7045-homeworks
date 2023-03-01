@@ -19,7 +19,7 @@ List psmatch(
       
       if (j==i)
         continue;
-      
+      // I want to consider only those combinations where is_treated differs.
       if (is_treated[j]==is_treated[i]){
         continue;
       }
