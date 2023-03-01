@@ -36,6 +36,6 @@ List psmatch(
     
   }
   
-  return List::create(_["match_id"]=indicies+1, _["match_x"]=values);
+  return List::create(_["match_id"]=indicies+1, _["match_propensity_score"]=values);
   
 }
